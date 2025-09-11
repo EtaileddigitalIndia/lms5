@@ -1,3 +1,41 @@
+// Course Management Types
+export interface CourseData {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail?: string;
+  price: number;
+  currency: string;
+  studentCount: number;
+  totalDuration: number; // in minutes
+  moduleCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CourseModule {
+  id: string;
+  courseId: string;
+  title: string;
+  description: string;
+  orderIndex: number;
+  duration: number; // in minutes
+  videos: ModuleVideo[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ModuleVideo {
+  id: string;
+  moduleId: string;
+  title: string;
+  youtubeUrl: string;
+  youtubeId: string;
+  duration: number; // in minutes
+  orderIndex: number;
+  createdAt: Date;
+}
+
 export interface Lesson {
   id: string;
   title: string;
