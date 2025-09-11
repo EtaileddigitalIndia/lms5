@@ -27,6 +27,8 @@ export class CourseService {
         price: courseData.price,
         currency: courseData.currency,
         student_count: courseData.studentCount || 0,
+        total_duration: courseData.totalDuration || 0,
+        module_count: courseData.moduleCount || 0,
         level: courseData.level || 'intermediate',
         category: courseData.category || 'General',
         tags: courseData.tags || [],
@@ -36,7 +38,10 @@ export class CourseService {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -64,7 +69,10 @@ export class CourseService {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return data.map(course => ({
       id: course.id,
@@ -93,7 +101,10 @@ export class CourseService {
       .eq('id', id)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -129,13 +140,17 @@ export class CourseService {
         category: updates.category,
         tags: updates.tags,
         job_guarantee: updates.jobGuarantee,
-        certificate_template: updates.certificateTemplate
+        certificate_template: updates.certificateTemplate,
+        updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -163,7 +178,10 @@ export class CourseService {
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
   }
 
   // Module CRUD operations
@@ -174,12 +192,16 @@ export class CourseService {
         course_id: courseId,
         title: moduleData.title,
         description: moduleData.description,
-        order_index: moduleData.orderIndex
+        order_index: moduleData.orderIndex,
+        duration: moduleData.duration || 0
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -204,7 +226,10 @@ export class CourseService {
       .eq('course_id', courseId)
       .order('order_index');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return data.map(module => ({
       id: module.id,
@@ -213,7 +238,7 @@ export class CourseService {
       description: module.description,
       orderIndex: module.order_index,
       duration: module.duration,
-      videos: module.module_videos.map((video: any) => ({
+      videos: (module.module_videos || []).map((video: any) => ({
         id: video.id,
         moduleId: video.module_id,
         title: video.title,
@@ -234,13 +259,17 @@ export class CourseService {
       .update({
         title: updates.title,
         description: updates.description,
-        order_index: updates.orderIndex
+        order_index: updates.orderIndex,
+        updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -261,14 +290,17 @@ export class CourseService {
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
   }
 
   // Video CRUD operations
   static async addVideoToModule(moduleId: string, videoData: { title: string; youtubeUrl: string; orderIndex: number }): Promise<ModuleVideo> {
     const youtubeId = this.extractYouTubeId(videoData.youtubeUrl);
     if (!youtubeId) {
-      throw new Error('Invalid YouTube URL');
+      throw new Error('Invalid YouTube URL. Please provide a valid YouTube video URL.');
     }
 
     const duration = await this.getYouTubeDuration(youtubeId);
@@ -286,7 +318,10 @@ export class CourseService {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -306,7 +341,10 @@ export class CourseService {
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
   }
 
   static async updateVideoOrder(videoId: string, newOrder: number): Promise<void> {
@@ -315,7 +353,10 @@ export class CourseService {
       .update({ order_index: newOrder })
       .eq('id', videoId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
   }
 
   // Export/Import functionality
@@ -374,6 +415,7 @@ export class CourseService {
 
       return createdCourse;
     } catch (error) {
+      console.error('Import error:', error);
       throw new Error('Invalid JSON format or import failed: ' + error);
     }
   }
