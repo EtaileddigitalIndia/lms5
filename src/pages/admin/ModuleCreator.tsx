@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   Save, 
@@ -9,13 +9,17 @@ import {
   CheckCircle,
   Trash2,
   Edit,
-  Upload
+  Upload,
+  Download,
+  FileUp
 } from 'lucide-react';
 import { Module, Lesson, Quiz, Assignment, CourseMaterial } from '../../types/course';
+import { ModuleService } from '../../services/moduleService';
 import toast from 'react-hot-toast';
 
 const ModuleCreator: React.FC = () => {
   const [modules, setModules] = useState<Module[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentModule, setCurrentModule] = useState<Partial<Module>>({
     title: '',
     description: '',
@@ -34,159 +38,200 @@ const ModuleCreator: React.FC = () => {
   const [showLessonForm, setShowLessonForm] = useState(false);
   const [showModuleForm, setShowModuleForm] = useState(false);
   const [editingModule, setEditingModule] = useState<string | null>(null);
+  const [importData, setImportData] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
 
-  const handleCreateModule = () => {
+  useEffect(() => {
+    loadModules();
+  }, []);
+
+  const loadModules = async () => {
+    try {
+      setIsLoading(true);
+      const loadedModules = await ModuleService.getAllModules();
+      setModules(loadedModules);
+    } catch (error) {
+      toast.error('Failed to load modules');
+      console.error('Error loading modules:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateModule = async () => {
     if (!currentModule.title || !currentModule.description) {
       toast.error('Please fill in module title and description');
       return;
     }
 
-    const newModule: Module = {
-      id: `module-${Date.now()}`,
-      title: currentModule.title,
-      description: currentModule.description,
-      order: modules.length + 1,
-      lessons: [],
-      completed: false
-    };
+    try {
+      const newModule = await ModuleService.createModule({
+        title: currentModule.title,
+        description: currentModule.description,
+        order: modules.length + 1
+      });
 
-    setModules([...modules, newModule]);
-    setCurrentModule({
-      title: '',
-      description: '',
-      order: modules.length + 2,
-      lessons: [],
-      completed: false
-    });
-    setShowModuleForm(false);
-    toast.success('Module created successfully!');
+      setModules([...modules, newModule]);
+      setCurrentModule({
+        title: '',
+        description: '',
+        order: modules.length + 2,
+        lessons: [],
+        completed: false
+      });
+      setShowModuleForm(false);
+      toast.success('Module created successfully!');
+    } catch (error) {
+      toast.error('Failed to create module');
+      console.error('Error creating module:', error);
+    }
   };
 
-  const handleCreateLesson = (moduleId: string) => {
+  const handleCreateLesson = async (moduleId: string) => {
     if (!currentLesson.title || !currentLesson.description) {
       toast.error('Please fill in lesson title and description');
       return;
     }
 
-    const newLesson: Lesson = {
-      id: `lesson-${Date.now()}`,
-      title: currentLesson.title,
-      description: currentLesson.description,
-      duration: currentLesson.duration || 30,
-      materials: [],
-      completed: false,
-      order: 1
-    };
+    try {
+      const newLesson = await ModuleService.createLesson(moduleId, {
+        title: currentLesson.title,
+        description: currentLesson.description,
+        duration: currentLesson.duration || 30,
+        order: 1
+      });
 
-    setModules(modules.map(module => {
-      if (module.id === moduleId) {
-        return {
-          ...module,
-          lessons: [...module.lessons, newLesson]
-        };
-      }
-      return module;
-    }));
+      // Reload modules to get updated data
+      await loadModules();
 
-    setCurrentLesson({
-      title: '',
-      description: '',
-      duration: 0,
-      materials: [],
-      completed: false,
-      order: 1
-    });
-    setShowLessonForm(false);
-    toast.success('Lesson created successfully!');
+      setCurrentLesson({
+        title: '',
+        description: '',
+        duration: 0,
+        materials: [],
+        completed: false,
+        order: 1
+      });
+      setShowLessonForm(false);
+      toast.success('Lesson created successfully!');
+    } catch (error) {
+      toast.error('Failed to create lesson');
+      console.error('Error creating lesson:', error);
+    }
   };
 
-  const handleAddMaterial = (moduleId: string, lessonId: string, material: CourseMaterial) => {
-    setModules(modules.map(module => {
-      if (module.id === moduleId) {
-        return {
-          ...module,
-          lessons: module.lessons.map(lesson => {
-            if (lesson.id === lessonId) {
-              return {
-                ...lesson,
-                materials: [...lesson.materials, material]
-              };
-            }
-            return lesson;
-          })
-        };
-      }
-      return module;
-    }));
-    toast.success('Material added successfully!');
+  const handleAddMaterial = async (lessonId: string, material: Omit<CourseMaterial, 'id'>) => {
+    try {
+      await ModuleService.addMaterial(lessonId, material);
+      await loadModules();
+      toast.success('Material added successfully!');
+    } catch (error) {
+      toast.error('Failed to add material');
+      console.error('Error adding material:', error);
+    }
   };
 
-  const handleAddQuiz = (moduleId: string, lessonId: string) => {
-    const quiz: Quiz = {
-      id: `quiz-${Date.now()}`,
+  const handleAddQuiz = async (lessonId: string) => {
+    const quiz: Omit<Quiz, 'id' | 'attempts'> = {
       title: 'Module Assessment',
       description: 'Test your understanding of this module',
       questions: [],
       timeLimit: 30,
       passingScore: 70,
-      maxAttempts: 3,
-      attempts: []
+      maxAttempts: 3
     };
 
-    setModules(modules.map(module => {
-      if (module.id === moduleId) {
-        return {
-          ...module,
-          lessons: module.lessons.map(lesson => {
-            if (lesson.id === lessonId) {
-              return {
-                ...lesson,
-                quiz
-              };
-            }
-            return lesson;
-          })
-        };
-      }
-      return module;
-    }));
-    toast.success('Quiz added successfully!');
+    try {
+      await ModuleService.createQuiz(lessonId, quiz);
+      await loadModules();
+      toast.success('Quiz added successfully!');
+    } catch (error) {
+      toast.error('Failed to add quiz');
+      console.error('Error adding quiz:', error);
+    }
   };
 
-  const handleAddAssignment = (moduleId: string, lessonId: string) => {
-    const assignment: Assignment = {
-      id: `assignment-${Date.now()}`,
+  const handleAddAssignment = async (lessonId: string) => {
+    const assignment: Omit<Assignment, 'id' | 'submissions'> = {
       title: 'Module Assignment',
       description: 'Complete this assignment to demonstrate your learning',
       instructions: 'Please complete the following tasks and submit your work.',
       maxScore: 100,
-      submissionType: 'file',
-      submissions: []
+      submissionType: 'file'
     };
 
-    setModules(modules.map(module => {
-      if (module.id === moduleId) {
-        return {
-          ...module,
-          lessons: module.lessons.map(lesson => {
-            if (lesson.id === lessonId) {
-              return {
-                ...lesson,
-                assignment
-              };
-            }
-            return lesson;
-          })
-        };
-      }
-      return module;
-    }));
-    toast.success('Assignment added successfully!');
+    try {
+      await ModuleService.createAssignment(lessonId, assignment);
+      await loadModules();
+      toast.success('Assignment added successfully!');
+    } catch (error) {
+      toast.error('Failed to add assignment');
+      console.error('Error adding assignment:', error);
+    }
   };
 
-  const handleDeleteModule = (moduleId: string) => {
-    setModules(modules.filter(module => module.id !== moduleId));
-    toast.success('Module deleted successfully!');
+  const handleDeleteModule = async (moduleId: string) => {
+    if (!confirm('Are you sure you want to delete this module? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await ModuleService.deleteModule(moduleId);
+      setModules(modules.filter(module => module.id !== moduleId));
+      toast.success('Module deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete module');
+      console.error('Error deleting module:', error);
+    }
+  };
+
+  const handleExportModules = async () => {
+    try {
+      const exportData = await ModuleService.exportModules();
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `modules-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Modules exported successfully!');
+    } catch (error) {
+      toast.error('Failed to export modules');
+      console.error('Error exporting modules:', error);
+    }
+  };
+
+  const handleImportModules = async () => {
+    if (!importData.trim()) {
+      toast.error('Please paste the JSON data to import');
+      return;
+    }
+
+    try {
+      await ModuleService.importModules(importData);
+      await loadModules();
+      setImportData('');
+      setShowImportModal(false);
+      toast.success('Modules imported successfully!');
+    } catch (error) {
+      toast.error('Failed to import modules. Please check the JSON format.');
+      console.error('Error importing modules:', error);
+    }
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setImportData(content);
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleSaveAllModules = () => {
@@ -194,6 +239,17 @@ const ModuleCreator: React.FC = () => {
     localStorage.setItem('course_modules', JSON.stringify(modules));
     toast.success('All modules saved successfully!');
   };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading modules...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -204,6 +260,20 @@ const ModuleCreator: React.FC = () => {
           <p className="text-gray-600">Create and manage course modules with lessons, materials, and assessments</p>
         </div>
         <div className="flex space-x-4">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
+          >
+            <FileUp className="h-4 w-4" />
+            <span>Import</span>
+          </button>
+          <button
+            onClick={handleExportModules}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
           <button
             onClick={() => setShowModuleForm(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
@@ -220,6 +290,63 @@ const ModuleCreator: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">Import Modules</h2>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload JSON File
+                </label>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileImport}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="text-center text-gray-500">
+                <span>OR</span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Paste JSON Data
+                </label>
+                <textarea
+                  value={importData}
+                  onChange={(e) => setImportData(e.target.value)}
+                  rows={10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                  placeholder="Paste your exported JSON data here..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-4">
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportModules}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Import Modules
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Module Creation Form */}
       {showModuleForm && (
@@ -281,13 +408,21 @@ const ModuleCreator: React.FC = () => {
           <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
             <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Modules Created</h3>
-            <p className="text-gray-600 mb-6">Start by creating your first module</p>
-            <button
-              onClick={() => setShowModuleForm(true)}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              Create First Module
-            </button>
+            <p className="text-gray-600 mb-6">Start by creating your first module or import existing ones</p>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setShowModuleForm(true)}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                Create First Module
+              </button>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors"
+              >
+                Import Modules
+              </button>
+            </div>
           </div>
         ) : (
           modules.map((module, index) => (
@@ -329,15 +464,17 @@ const ModuleCreator: React.FC = () => {
                   <span>Add Lesson</span>
                 </button>
                 <button
-                  onClick={() => handleAddQuiz(module.id, module.lessons[0]?.id)}
-                  className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 transition-colors flex items-center space-x-1"
+                  onClick={() => handleAddQuiz(module.lessons[0]?.id)}
+                  disabled={!module.lessons.length}
+                  className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 transition-colors flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle className="h-3 w-3" />
                   <span>Add Assessment</span>
                 </button>
                 <button
-                  onClick={() => handleAddAssignment(module.id, module.lessons[0]?.id)}
-                  className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700 transition-colors flex items-center space-x-1"
+                  onClick={() => handleAddAssignment(module.lessons[0]?.id)}
+                  disabled={!module.lessons.length}
+                  className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700 transition-colors flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FileText className="h-3 w-3" />
                   <span>Add Assignment</span>
