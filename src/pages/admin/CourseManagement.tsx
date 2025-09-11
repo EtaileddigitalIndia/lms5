@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
   Users, 
@@ -10,14 +9,19 @@ import {
   Eye,
   Download,
   Upload,
-  Filter,
   Search,
   Video,
   DollarSign,
-  Clock
+  Clock,
+  Star,
+  Play,
+  FileUp,
+  ExternalLink,
+  Trash
 } from 'lucide-react';
 import { CourseData, CourseModule } from '../../types/course';
 import { CourseService } from '../../services/courseService';
+import YouTubePlayer from '../../components/YouTubePlayer';
 import toast from 'react-hot-toast';
 
 const CourseManagement: React.FC = () => {
@@ -26,7 +30,6 @@ const CourseManagement: React.FC = () => {
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [showModuleForm, setShowModuleForm] = useState(false);
   const [showVideoForm, setShowVideoForm] = useState(false);
@@ -39,20 +42,20 @@ const CourseManagement: React.FC = () => {
     description: '',
     thumbnail: '',
     price: 0,
-    currency: 'USD',
-    studentCount: 0
+    currency: 'INR',
+    level: 'intermediate',
+    category: 'Digital Marketing',
+    jobGuarantee: false
   });
 
   const [moduleForm, setModuleForm] = useState({
     title: '',
-    description: '',
-    orderIndex: 1
+    description: ''
   });
 
   const [videoForm, setVideoForm] = useState({
     title: '',
-    youtubeUrl: '',
-    orderIndex: 1
+    youtubeUrl: ''
   });
 
   useEffect(() => {
@@ -89,15 +92,32 @@ const CourseManagement: React.FC = () => {
     }
 
     try {
-      const newCourse = await CourseService.createCourse(courseForm);
+      const newCourse = await CourseService.createCourse({
+        title: courseForm.title,
+        description: courseForm.description,
+        thumbnail: courseForm.thumbnail || 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800',
+        price: courseForm.price,
+        currency: courseForm.currency,
+        studentCount: 0,
+        totalDuration: 0,
+        moduleCount: 0,
+        level: courseForm.level as any,
+        category: courseForm.category,
+        tags: ['e-commerce', 'digital marketing'],
+        jobGuarantee: courseForm.jobGuarantee,
+        certificateTemplate: 'professional'
+      });
+
       setCourses([newCourse, ...courses]);
       setCourseForm({
         title: '',
         description: '',
         thumbnail: '',
         price: 0,
-        currency: 'USD',
-        studentCount: 0
+        currency: 'INR',
+        level: 'intermediate',
+        category: 'Digital Marketing',
+        jobGuarantee: false
       });
       setShowCourseForm(false);
       toast.success('Course created successfully!');
@@ -114,17 +134,23 @@ const CourseManagement: React.FC = () => {
     }
 
     try {
-      const newModule = await CourseService.createModule(selectedCourse.id, moduleForm);
+      const newModule = await CourseService.createModule(selectedCourse.id, {
+        title: moduleForm.title,
+        description: moduleForm.description,
+        orderIndex: modules.length + 1,
+        duration: 0
+      });
+
       setModules([...modules, newModule]);
       setModuleForm({
         title: '',
-        description: '',
-        orderIndex: modules.length + 1
+        description: ''
       });
       setShowModuleForm(false);
       toast.success('Module created successfully!');
-      // Reload course to update stats
-      loadCourses();
+      
+      // Reload courses to update stats
+      await loadCourses();
     } catch (error) {
       toast.error('Failed to create module');
       console.error('Error creating module:', error);
@@ -138,21 +164,63 @@ const CourseManagement: React.FC = () => {
     }
 
     try {
-      await CourseService.addVideoToModule(selectedModuleId, videoForm);
+      const selectedModule = modules.find(m => m.id === selectedModuleId);
+      if (!selectedModule) {
+        toast.error('Module not found');
+        return;
+      }
+
+      await CourseService.addVideoToModule(selectedModuleId, {
+        title: videoForm.title,
+        youtubeUrl: videoForm.youtubeUrl,
+        orderIndex: selectedModule.videos.length + 1
+      });
+
       await loadModules(selectedCourse!.id);
+      await loadCourses(); // Update course stats
+      
       setVideoForm({
         title: '',
-        youtubeUrl: '',
-        orderIndex: 1
+        youtubeUrl: ''
       });
       setShowVideoForm(false);
       setSelectedModuleId(null);
       toast.success('Video added successfully!');
-      // Reload course to update stats
-      loadCourses();
     } catch (error) {
       toast.error('Failed to add video. Please check the YouTube URL.');
       console.error('Error adding video:', error);
+    }
+  };
+
+  const handleDeleteVideo = async (videoId: string) => {
+    if (!confirm('Are you sure you want to delete this video?')) {
+      return;
+    }
+
+    try {
+      await CourseService.deleteVideo(videoId);
+      await loadModules(selectedCourse!.id);
+      await loadCourses();
+      toast.success('Video deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete video');
+      console.error('Error deleting video:', error);
+    }
+  };
+
+  const handleDeleteModule = async (moduleId: string) => {
+    if (!confirm('Are you sure you want to delete this module? All videos will be deleted.')) {
+      return;
+    }
+
+    try {
+      await CourseService.deleteModule(moduleId);
+      setModules(modules.filter(m => m.id !== moduleId));
+      await loadCourses();
+      toast.success('Module deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete module');
+      console.error('Error deleting module:', error);
     }
   };
 
@@ -212,6 +280,18 @@ const CourseManagement: React.FC = () => {
     }
   };
 
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setImportData(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
   const filteredCourses = courses.filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -235,7 +315,7 @@ const CourseManagement: React.FC = () => {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Course Management</h1>
-          <p className="text-gray-600">Manage course content, modules, and materials</p>
+          <p className="text-gray-600">Create and manage courses with modules and YouTube videos</p>
         </div>
         <div className="flex space-x-4">
           <button
@@ -255,6 +335,20 @@ const CourseManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search courses..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </div>
+
       {/* Course Creation Form */}
       {showCourseForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -264,31 +358,17 @@ const CourseManagement: React.FC = () => {
             </div>
             
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Course Title
-                  </label>
-                  <input
-                    type="text"
-                    value={courseForm.title}
-                    onChange={(e) => setCourseForm({...courseForm, title: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter course title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price
-                  </label>
-                  <input
-                    type="number"
-                    value={courseForm.price}
-                    onChange={(e) => setCourseForm({...courseForm, price: parseFloat(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="0"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Course Title
+                </label>
+                <input
+                  type="text"
+                  value={courseForm.title}
+                  onChange={(e) => setCourseForm({...courseForm, title: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter course title"
+                />
               </div>
 
               <div>
@@ -304,17 +384,93 @@ const CourseManagement: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={courseForm.price}
+                    onChange={(e) => setCourseForm({...courseForm, price: parseFloat(e.target.value) || 0})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="118000"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Currency
+                  </label>
+                  <select
+                    value={courseForm.currency}
+                    onChange={(e) => setCourseForm({...courseForm, currency: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="INR">INR (₹)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Level
+                  </label>
+                  <select
+                    value={courseForm.level}
+                    onChange={(e) => setCourseForm({...courseForm, level: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={courseForm.category}
+                    onChange={(e) => setCourseForm({...courseForm, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="Digital Marketing">Digital Marketing</option>
+                    <option value="E-Commerce">E-Commerce</option>
+                    <option value="Business">Business</option>
+                    <option value="Technology">Technology</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Thumbnail URL (Optional)
+                  Thumbnail URL
                 </label>
                 <input
                   type="url"
                   value={courseForm.thumbnail}
                   onChange={(e) => setCourseForm({...courseForm, thumbnail: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="https://example.com/image.jpg"
+                  placeholder="https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg"
                 />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="jobGuarantee"
+                  checked={courseForm.jobGuarantee}
+                  onChange={(e) => setCourseForm({...courseForm, jobGuarantee: e.target.checked})}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="jobGuarantee" className="ml-2 block text-sm text-gray-700">
+                  Job Guarantee Program
+                </label>
               </div>
 
               <div className="flex justify-end space-x-4">
@@ -347,6 +503,22 @@ const CourseManagement: React.FC = () => {
             <div className="p-6 space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload JSON File
+                </label>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileImport}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="text-center text-gray-500">
+                <span>OR</span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Paste JSON Data
                 </label>
                 <textarea
@@ -376,38 +548,9 @@ const CourseManagement: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search modules..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="all">All Courses</option>
-            <option value="published">Published</option>
-            <option value="draft">Draft</option>
-          </select>
-
-          <div className="text-sm text-gray-500 flex items-center">
-            Total Courses: {courses.length}
-          </div>
-        </div>
-      </div>
 
       {/* Courses List */}
-      <div className="grid gap-6">
+      <div className="space-y-6">
         {filteredCourses.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
             <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -423,85 +566,81 @@ const CourseManagement: React.FC = () => {
         ) : (
           filteredCourses.map((course) => (
             <div key={course.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-4 flex-1">
-                {course.thumbnail ? (
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-4 flex-1">
                   <img
-                    src={course.thumbnail}
+                    src={course.thumbnail || 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800'}
                     alt={course.title}
                     className="w-24 h-16 object-cover rounded-lg"
                   />
-                ) : (
-                  <div className="w-24 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <BookOpen className="h-8 w-8 text-gray-400" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
-                  <p className="text-gray-600 mb-4">{course.description}</p>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <BookOpen className="h-4 w-4 text-blue-500" />
-                      <span>{course.moduleCount} modules</span>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h3 className="text-xl font-semibold text-gray-900">{course.title}</h3>
+                      {course.jobGuarantee && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          Job Guarantee
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-green-500" />
-                      <span>{Math.round(course.totalDuration / 60)}h</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Users className="h-4 w-4 text-purple-500" />
-                      <span>{course.studentCount} students</span>
-                    </div>
-                    <div>
+                    <p className="text-gray-600 mb-4">{course.description}</p>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <BookOpen className="h-4 w-4 text-blue-500" />
+                        <span>{course.moduleCount} modules</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-green-500" />
+                        <span>{Math.round(course.totalDuration / 60)}h</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-4 w-4 text-purple-500" />
+                        <span>{course.studentCount} students</span>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <DollarSign className="h-4 w-4 text-green-500" />
-                        <span>{course.currency} {course.price}</span>
+                        <span>{course.currency} {course.price.toLocaleString()}</span>
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Created: {course.createdAt.toLocaleDateString()}
+                      <div className="flex items-center space-x-2">
+                        <Star className="h-4 w-4 text-yellow-500" />
+                        <span className="capitalize">{course.level}</span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {course.createdAt.toLocaleDateString()}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleExportCourse(course.id)}
-                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                  title="Export Course"
-                >
-                  <Download className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={async () => {
-                    setSelectedCourse(course);
-                    await loadModules(course.id);
-                  }}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="View Course"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => {/* Edit functionality */}}
-                  className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
-                  title="Edit Course"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleDeleteCourse(course.id)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Delete Course"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {/* Actions */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleExportCourse(course.id)}
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    title="Export Course"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setSelectedCourse(course);
+                      await loadModules(course.id);
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Manage Modules"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCourse(course.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete Course"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
           ))
         )}
       </div>
@@ -509,10 +648,13 @@ const CourseManagement: React.FC = () => {
       {/* Course Details Modal */}
       {selectedCourse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">{selectedCourse.title}</h2>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{selectedCourse.title}</h2>
+                  <p className="text-gray-600 mt-1">{selectedCourse.description}</p>
+                </div>
                 <div className="flex space-x-2">
                   <button
                     onClick={() => setShowModuleForm(true)}
@@ -521,30 +663,41 @@ const CourseManagement: React.FC = () => {
                     <Plus className="h-4 w-4" />
                     <span>Add Module</span>
                   </button>
+                  <button
+                    onClick={() => {
+                      setSelectedCourse(null);
+                      setModules([]);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 p-2"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             </div>
             
             <div className="p-6">
-              {/* Course Info */}
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-700">Modules:</span>
-                    <span className="ml-2 text-gray-900">{selectedCourse.moduleCount}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Duration:</span>
-                    <span className="ml-2 text-gray-900">{Math.round(selectedCourse.totalDuration / 60)}h</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Students:</span>
-                    <span className="ml-2 text-gray-900">{selectedCourse.studentCount}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Price:</span>
-                    <span className="ml-2 text-gray-900">{selectedCourse.currency} {selectedCourse.price}</span>
-                  </div>
+              {/* Course Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{selectedCourse.moduleCount}</div>
+                  <div className="text-sm text-gray-600">Modules</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{Math.round(selectedCourse.totalDuration / 60)}h</div>
+                  <div className="text-sm text-gray-600">Duration</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">{selectedCourse.studentCount}</div>
+                  <div className="text-sm text-gray-600">Students</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">₹{selectedCourse.price.toLocaleString()}</div>
+                  <div className="text-sm text-gray-600">Price</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600 capitalize">{selectedCourse.level}</div>
+                  <div className="text-sm text-gray-600">Level</div>
                 </div>
               </div>
 
@@ -560,7 +713,7 @@ const CourseManagement: React.FC = () => {
                 ) : (
                   modules.map((module, index) => (
                     <div key={module.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between mb-4">
                         <div className="flex items-start space-x-3">
                           <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
                             {index + 1}
@@ -574,62 +727,83 @@ const CourseManagement: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => {
-                            setSelectedModuleId(module.id);
-                            setVideoForm({
-                              ...videoForm,
-                              orderIndex: module.videos.length + 1
-                            });
-                            setShowVideoForm(true);
-                          }}
-                          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors flex items-center space-x-1"
-                        >
-                          <Video className="h-3 w-3" />
-                          <span>Add Video</span>
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedModuleId(module.id);
+                              setVideoForm({
+                                title: '',
+                                youtubeUrl: ''
+                              });
+                              setShowVideoForm(true);
+                            }}
+                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors flex items-center space-x-1"
+                          >
+                            <Video className="h-3 w-3" />
+                            <span>Add Video</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteModule(module.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete Module"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                       
                       {/* Videos List */}
                       {module.videos.length > 0 && (
-                        <div className="mt-4 ml-11 space-y-2">
-                          {module.videos.map((video, videoIndex) => (
-                            <div key={video.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded">
-                              <div className="w-6 h-6 bg-red-500 text-white rounded flex items-center justify-center text-xs">
-                                {videoIndex + 1}
+                        <div className="mt-4 space-y-3">
+                          <h5 className="font-medium text-gray-800 text-sm">Videos:</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {module.videos.map((video, videoIndex) => (
+                              <div key={video.id} className="bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-6 h-6 bg-red-500 text-white rounded flex items-center justify-center text-xs font-medium">
+                                      {videoIndex + 1}
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">{video.title}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDeleteVideo(video.id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
+                                    title="Delete Video"
+                                  >
+                                    <Trash className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                
+                                <YouTubePlayer
+                                  videoId={video.youtubeId}
+                                  title={video.title}
+                                  width="100%"
+                                  height="120px"
+                                  className="mb-2"
+                                />
+                                
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span>{video.duration} min</span>
+                                  <a
+                                    href={video.youtubeUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    <span>YouTube</span>
+                                  </a>
+                                </div>
                               </div>
-                              <div className="flex-1">
-                                <span className="text-sm font-medium text-gray-900">{video.title}</span>
-                                <div className="text-xs text-gray-500">{video.duration} min</div>
-                              </div>
-                              <a
-                                href={video.youtubeUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 text-xs"
-                              >
-                                View
-                              </a>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
                   ))
                 )}
               </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setSelectedCourse(null);
-                  setModules([]);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

@@ -9,6 +9,126 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export interface Database {
   public: {
     Tables: {
+      courses: {
+        Row: {
+          id: string
+          title: string
+          description: string
+          thumbnail: string | null
+          price: number
+          currency: string
+          student_count: number
+          total_duration: number
+          module_count: number
+          level: string
+          category: string
+          tags: string[]
+          job_guarantee: boolean
+          certificate_template: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description: string
+          thumbnail?: string | null
+          price?: number
+          currency?: string
+          student_count?: number
+          total_duration?: number
+          module_count?: number
+          level?: string
+          category?: string
+          tags?: string[]
+          job_guarantee?: boolean
+          certificate_template?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string
+          thumbnail?: string | null
+          price?: number
+          currency?: string
+          student_count?: number
+          total_duration?: number
+          module_count?: number
+          level?: string
+          category?: string
+          tags?: string[]
+          job_guarantee?: boolean
+          certificate_template?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      course_modules: {
+        Row: {
+          id: string
+          course_id: string
+          title: string
+          description: string
+          order_index: number
+          duration: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          title: string
+          description: string
+          order_index: number
+          duration?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          title?: string
+          description?: string
+          order_index?: number
+          duration?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      module_videos: {
+        Row: {
+          id: string
+          module_id: string
+          title: string
+          youtube_url: string
+          youtube_id: string
+          duration: number
+          order_index: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          module_id: string
+          title: string
+          youtube_url: string
+          youtube_id: string
+          duration?: number
+          order_index: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          module_id?: string
+          title?: string
+          youtube_url?: string
+          youtube_id?: string
+          duration?: number
+          order_index?: number
+          created_at?: string
+        }
+      }
       modules: {
         Row: {
           id: string
