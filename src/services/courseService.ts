@@ -11,9 +11,9 @@ export class CourseService {
 
   // Get video duration from YouTube API (simplified - in production you'd use YouTube API)
   static async getYouTubeDuration(videoId: string): Promise<number> {
-    // For demo purposes, return a random duration
+    // For demo purposes, return a random duration between 5-35 minutes
     // In production, you would call YouTube Data API v3
-    return Math.floor(Math.random() * 30) + 5; // 5-35 minutes
+    return Math.floor(Math.random() * 30) + 5;
   }
 
   // Course CRUD operations
@@ -26,7 +26,12 @@ export class CourseService {
         thumbnail: courseData.thumbnail,
         price: courseData.price,
         currency: courseData.currency,
-        student_count: courseData.studentCount
+        student_count: courseData.studentCount || 0,
+        level: courseData.level || 'intermediate',
+        category: courseData.category || 'General',
+        tags: courseData.tags || [],
+        job_guarantee: courseData.jobGuarantee || false,
+        certificate_template: courseData.certificateTemplate || 'standard'
       })
       .select()
       .single();
@@ -43,6 +48,11 @@ export class CourseService {
       studentCount: data.student_count,
       totalDuration: data.total_duration,
       moduleCount: data.module_count,
+      level: data.level,
+      category: data.category,
+      tags: data.tags,
+      jobGuarantee: data.job_guarantee,
+      certificateTemplate: data.certificate_template,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };
@@ -66,6 +76,11 @@ export class CourseService {
       studentCount: course.student_count,
       totalDuration: course.total_duration,
       moduleCount: course.module_count,
+      level: course.level,
+      category: course.category,
+      tags: course.tags,
+      jobGuarantee: course.job_guarantee,
+      certificateTemplate: course.certificate_template,
       createdAt: new Date(course.created_at),
       updatedAt: new Date(course.updated_at)
     }));
@@ -90,6 +105,11 @@ export class CourseService {
       studentCount: data.student_count,
       totalDuration: data.total_duration,
       moduleCount: data.module_count,
+      level: data.level,
+      category: data.category,
+      tags: data.tags,
+      jobGuarantee: data.job_guarantee,
+      certificateTemplate: data.certificate_template,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };
@@ -104,7 +124,12 @@ export class CourseService {
         thumbnail: updates.thumbnail,
         price: updates.price,
         currency: updates.currency,
-        student_count: updates.studentCount
+        student_count: updates.studentCount,
+        level: updates.level,
+        category: updates.category,
+        tags: updates.tags,
+        job_guarantee: updates.jobGuarantee,
+        certificate_template: updates.certificateTemplate
       })
       .eq('id', id)
       .select()
@@ -122,6 +147,11 @@ export class CourseService {
       studentCount: data.student_count,
       totalDuration: data.total_duration,
       moduleCount: data.module_count,
+      level: data.level,
+      category: data.category,
+      tags: data.tags,
+      jobGuarantee: data.job_guarantee,
+      certificateTemplate: data.certificate_template,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };
@@ -192,7 +222,7 @@ export class CourseService {
         duration: video.duration,
         orderIndex: video.order_index,
         createdAt: new Date(video.created_at)
-      })),
+      })).sort((a: ModuleVideo, b: ModuleVideo) => a.orderIndex - b.orderIndex),
       createdAt: new Date(module.created_at),
       updatedAt: new Date(module.updated_at)
     }));
@@ -279,6 +309,15 @@ export class CourseService {
     if (error) throw error;
   }
 
+  static async updateVideoOrder(videoId: string, newOrder: number): Promise<void> {
+    const { error } = await supabase
+      .from('module_videos')
+      .update({ order_index: newOrder })
+      .eq('id', videoId);
+
+    if (error) throw error;
+  }
+
   // Export/Import functionality
   static async exportCourse(courseId: string): Promise<string> {
     const course = await this.getCourseById(courseId);
@@ -304,7 +343,14 @@ export class CourseService {
         thumbnail: course.thumbnail,
         price: course.price,
         currency: course.currency,
-        studentCount: 0
+        studentCount: 0,
+        totalDuration: 0,
+        moduleCount: 0,
+        level: course.level,
+        category: course.category,
+        tags: course.tags,
+        jobGuarantee: course.jobGuarantee,
+        certificateTemplate: course.certificateTemplate
       });
 
       // Create modules and videos
@@ -330,5 +376,16 @@ export class CourseService {
     } catch (error) {
       throw new Error('Invalid JSON format or import failed: ' + error);
     }
+  }
+
+  // Get course with full details including modules and videos
+  static async getCourseWithDetails(courseId: string): Promise<CourseData & { modules: CourseModule[] }> {
+    const course = await this.getCourseById(courseId);
+    const modules = await this.getCourseModules(courseId);
+
+    return {
+      ...course,
+      modules
+    };
   }
 }
