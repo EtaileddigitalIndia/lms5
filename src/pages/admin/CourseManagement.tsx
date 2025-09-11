@@ -227,7 +227,7 @@ const CourseManagement: React.FC = () => {
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <div className="p-6">
@@ -744,27 +744,6 @@ const CourseManagement: React.FC = () => {
               >
                 Add Video
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default CourseManagement;
-                <button
-                  onClick={() => setSelectedModule(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {/* Module details content would go here */}
-              <p className="text-gray-600">Detailed module information and management options...</p>
             </div>
           </div>
         </div>
