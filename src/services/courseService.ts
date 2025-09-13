@@ -9,11 +9,17 @@ export class CourseService {
     return (match && match[2].length === 11) ? match[2] : null;
   }
 
-  // Get video duration from YouTube API (simplified - in production you'd use YouTube API)
+  // Get video duration (simplified - in production you'd use YouTube Data API)
   static async getYouTubeDuration(videoId: string): Promise<number> {
-    // For demo purposes, return a random duration between 5-35 minutes
-    // In production, you would call YouTube Data API v3
-    return Math.floor(Math.random() * 30) + 5;
+    try {
+      // For demo purposes, return a random duration between 10-45 minutes
+      // In production, you would call YouTube Data API v3 to get actual duration
+      const duration = Math.floor(Math.random() * 35) + 10;
+      return duration;
+    } catch (error) {
+      console.error('Error fetching video duration:', error);
+      return 30; // Default duration
+    }
   }
 
   // Course CRUD operations

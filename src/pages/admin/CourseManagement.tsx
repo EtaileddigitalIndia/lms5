@@ -22,18 +22,15 @@ import {
 import { CourseData, CourseModule } from '../../types/course';
 import { CourseService } from '../../services/courseService';
 import YouTubePlayer from '../../components/YouTubePlayer';
+import ModuleManager from '../../components/ModuleManager';
 import toast from 'react-hot-toast';
 
 const CourseManagement: React.FC = () => {
   const [courses, setCourses] = useState<CourseData[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<CourseData | null>(null);
-  const [modules, setModules] = useState<CourseModule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCourseForm, setShowCourseForm] = useState(false);
-  const [showModuleForm, setShowModuleForm] = useState(false);
-  const [showVideoForm, setShowVideoForm] = useState(false);
-  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [importData, setImportData] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
 
@@ -46,16 +43,6 @@ const CourseManagement: React.FC = () => {
     level: 'intermediate',
     category: 'Digital Marketing',
     jobGuarantee: false
-  });
-
-  const [moduleForm, setModuleForm] = useState({
-    title: '',
-    description: ''
-  });
-
-  const [videoForm, setVideoForm] = useState({
-    title: '',
-    youtubeUrl: ''
   });
 
   useEffect(() => {
@@ -72,16 +59,6 @@ const CourseManagement: React.FC = () => {
       console.error('Error loading courses:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadModules = async (courseId: string) => {
-    try {
-      const loadedModules = await CourseService.getCourseModules(courseId);
-      setModules(loadedModules);
-    } catch (error) {
-      toast.error('Failed to load modules');
-      console.error('Error loading modules:', error);
     }
   };
 
@@ -124,103 +101,6 @@ const CourseManagement: React.FC = () => {
     } catch (error) {
       toast.error('Failed to create course');
       console.error('Error creating course:', error);
-    }
-  };
-
-  const handleCreateModule = async () => {
-    if (!selectedCourse || !moduleForm.title || !moduleForm.description) {
-      toast.error('Please fill in module title and description');
-      return;
-    }
-
-    try {
-      const newModule = await CourseService.createModule(selectedCourse.id, {
-        title: moduleForm.title,
-        description: moduleForm.description,
-        orderIndex: modules.length + 1,
-        duration: 0
-      });
-
-      setModules([...modules, newModule]);
-      setModuleForm({
-        title: '',
-        description: ''
-      });
-      setShowModuleForm(false);
-      toast.success('Module created successfully!');
-      
-      // Reload courses to update stats
-      await loadCourses();
-    } catch (error) {
-      toast.error('Failed to create module');
-      console.error('Error creating module:', error);
-    }
-  };
-
-  const handleAddVideo = async () => {
-    if (!selectedModuleId || !videoForm.title || !videoForm.youtubeUrl) {
-      toast.error('Please fill in all video details');
-      return;
-    }
-
-    try {
-      const selectedModule = modules.find(m => m.id === selectedModuleId);
-      if (!selectedModule) {
-        toast.error('Module not found');
-        return;
-      }
-
-      await CourseService.addVideoToModule(selectedModuleId, {
-        title: videoForm.title,
-        youtubeUrl: videoForm.youtubeUrl,
-        orderIndex: selectedModule.videos.length + 1
-      });
-
-      await loadModules(selectedCourse!.id);
-      await loadCourses(); // Update course stats
-      
-      setVideoForm({
-        title: '',
-        youtubeUrl: ''
-      });
-      setShowVideoForm(false);
-      setSelectedModuleId(null);
-      toast.success('Video added successfully!');
-    } catch (error) {
-      toast.error('Failed to add video. Please check the YouTube URL.');
-      console.error('Error adding video:', error);
-    }
-  };
-
-  const handleDeleteVideo = async (videoId: string) => {
-    if (!confirm('Are you sure you want to delete this video?')) {
-      return;
-    }
-
-    try {
-      await CourseService.deleteVideo(videoId);
-      await loadModules(selectedCourse!.id);
-      await loadCourses();
-      toast.success('Video deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete video');
-      console.error('Error deleting video:', error);
-    }
-  };
-
-  const handleDeleteModule = async (moduleId: string) => {
-    if (!confirm('Are you sure you want to delete this module? All videos will be deleted.')) {
-      return;
-    }
-
-    try {
-      await CourseService.deleteModule(moduleId);
-      setModules(modules.filter(m => m.id !== moduleId));
-      await loadCourses();
-      toast.success('Module deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete module');
-      console.error('Error deleting module:', error);
     }
   };
 
@@ -271,7 +151,6 @@ const CourseManagement: React.FC = () => {
       setCourses(courses.filter(course => course.id !== courseId));
       if (selectedCourse?.id === courseId) {
         setSelectedCourse(null);
-        setModules([]);
       }
       toast.success('Course deleted successfully!');
     } catch (error) {
@@ -624,7 +503,6 @@ const CourseManagement: React.FC = () => {
                   <button
                     onClick={async () => {
                       setSelectedCourse(course);
-                      await loadModules(course.id);
                     }}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Manage Modules"
@@ -657,271 +535,9 @@ const CourseManagement: React.FC = () => {
                 </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => setShowModuleForm(true)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Add Module</span>
-                  </button>
-                  <button
                     onClick={() => {
                       setSelectedCourse(null);
-                      setModules([]);
                     }}
-                    className="text-gray-400 hover:text-gray-600 p-2"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {/* Course Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{selectedCourse.moduleCount}</div>
-                  <div className="text-sm text-gray-600">Modules</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{Math.round(selectedCourse.totalDuration / 60)}h</div>
-                  <div className="text-sm text-gray-600">Duration</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">{selectedCourse.studentCount}</div>
-                  <div className="text-sm text-gray-600">Students</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">₹{selectedCourse.price.toLocaleString()}</div>
-                  <div className="text-sm text-gray-600">Price</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600 capitalize">{selectedCourse.level}</div>
-                  <div className="text-sm text-gray-600">Level</div>
-                </div>
-              </div>
-
-              {/* Modules List */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Modules ({modules.length})</h3>
-                
-                {modules.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p>No modules created yet. Add your first module to get started.</p>
-                  </div>
-                ) : (
-                  modules.map((module, index) => (
-                    <div key={module.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{module.title}</h4>
-                            <p className="text-sm text-gray-600 mt-1">{module.description}</p>
-                            <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                              <span>{module.videos.length} videos</span>
-                              <span>{module.duration} minutes</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedModuleId(module.id);
-                              setVideoForm({
-                                title: '',
-                                youtubeUrl: ''
-                              });
-                              setShowVideoForm(true);
-                            }}
-                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors flex items-center space-x-1"
-                          >
-                            <Video className="h-3 w-3" />
-                            <span>Add Video</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteModule(module.id)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Delete Module"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Videos List */}
-                      {module.videos.length > 0 && (
-                        <div className="mt-4 space-y-3">
-                          <h5 className="font-medium text-gray-800 text-sm">Videos:</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {module.videos.map((video, videoIndex) => (
-                              <div key={video.id} className="bg-gray-50 rounded-lg p-3">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="w-6 h-6 bg-red-500 text-white rounded flex items-center justify-center text-xs font-medium">
-                                      {videoIndex + 1}
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-900">{video.title}</span>
-                                  </div>
-                                  <button
-                                    onClick={() => handleDeleteVideo(video.id)}
-                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
-                                    title="Delete Video"
-                                  >
-                                    <Trash className="h-3 w-3" />
-                                  </button>
-                                </div>
-                                
-                                <YouTubePlayer
-                                  videoId={video.youtubeId}
-                                  title={video.title}
-                                  width="100%"
-                                  height="120px"
-                                  className="mb-2"
-                                />
-                                
-                                <div className="flex items-center justify-between text-xs text-gray-500">
-                                  <span>{video.duration} min</span>
-                                  <a
-                                    href={video.youtubeUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    <span>YouTube</span>
-                                  </a>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Module Creation Form */}
-      {showModuleForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Add New Module</h3>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Module Title
-                </label>
-                <input
-                  type="text"
-                  value={moduleForm.title}
-                  onChange={(e) => setModuleForm({...moduleForm, title: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter module title"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Module Description
-                </label>
-                <textarea
-                  value={moduleForm.description}
-                  onChange={(e) => setModuleForm({...moduleForm, description: e.target.value})}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Describe the module content"
-                />
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 flex justify-end space-x-4">
-              <button
-                onClick={() => setShowModuleForm(false)}
-                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateModule}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Add Module
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Video Addition Form */}
-      {showVideoForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Add YouTube Video</h3>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Video Title
-                </label>
-                <input
-                  type="text"
-                  value={videoForm.title}
-                  onChange={(e) => setVideoForm({...videoForm, title: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter video title"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  YouTube URL
-                </label>
-                <input
-                  type="url"
-                  value={videoForm.youtubeUrl}
-                  onChange={(e) => setVideoForm({...videoForm, youtubeUrl: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="https://www.youtube.com/watch?v=..."
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Paste the full YouTube URL here
-                </p>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 flex justify-end space-x-4">
-              <button
-                onClick={() => {
-                  setShowVideoForm(false);
-                  setSelectedModuleId(null);
-                }}
-                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddVideo}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                Add Video
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

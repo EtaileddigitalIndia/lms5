@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import QuizComponent from '../../components/QuizComponent';
 import AssignmentComponent from '../../components/AssignmentComponent';
+import ModuleCertificateGenerator from '../../components/ModuleCertificateGenerator';
 
 const CourseViewer: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
@@ -32,6 +33,7 @@ const CourseViewer: React.FC = () => {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'content' | 'materials' | 'quiz' | 'assignment'>('content');
+  const [showCertificate, setShowCertificate] = useState<{ moduleId: string; moduleTitle: string } | null>(null);
 
   const course = courses.find(c => c.id === courseId);
   const progress = getCourseProgress(courseId!);
@@ -83,6 +85,10 @@ const CourseViewer: React.FC = () => {
     if (selectedLessonId) {
       markLessonComplete(course.id, selectedLessonId);
     }
+  };
+
+  const handleModuleComplete = (moduleId: string, moduleTitle: string) => {
+    setShowCertificate({ moduleId, moduleTitle });
   };
 
   const toggleModule = (moduleId: string) => {
@@ -286,6 +292,12 @@ const CourseViewer: React.FC = () => {
                     >
                       <Award className="h-4 w-4" />
                       <span>Get Certificate</span>
+                      <button
+                        onClick={() => handleModuleComplete(module.id, module.title)}
+                        className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Get Certificate
+                      </button>
                     </button>
                   )}
                 </div>
@@ -501,6 +513,25 @@ const CourseViewer: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Module Certificate Modal */}
+      {showCertificate && (
+        <ModuleCertificateGenerator
+          module={{
+            id: showCertificate.moduleId,
+            title: showCertificate.moduleTitle,
+            description: '',
+            orderIndex: 0,
+            duration: 0,
+            videos: [],
+            courseId: course.id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }}
+          courseName={course.title}
+          onClose={() => setShowCertificate(null)}
+        />
+      )}
     </div>
   );
 };

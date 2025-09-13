@@ -5,6 +5,7 @@ import { useComprehensiveCourse } from '../../context/ComprehensiveCourseContext
 import CertificationTracker from '../../components/CertificationTracker';
 import StartupTracker from '../../components/StartupTracker';
 import ResourceVault from '../../components/ResourceVault';
+import ModuleCertificateGenerator from '../../components/ModuleCertificateGenerator';
 import { 
   BookOpen, 
   Clock, 
@@ -33,6 +34,7 @@ const ComprehensiveStudentDashboard: React.FC = () => {
   } = useComprehensiveCourse();
   
   const [activeTab, setActiveTab] = useState<'overview' | 'certifications' | 'startup' | 'resources'>('overview');
+  const [showCertificate, setShowCertificate] = useState<{ moduleId: string; moduleTitle: string } | null>(null);
 
   const stats = [
     {
@@ -223,7 +225,12 @@ const ComprehensiveStudentDashboard: React.FC = () => {
                         {isCompleted && (
                           <div className="flex items-center space-x-1 text-yellow-500">
                             <Star className="h-4 w-4" />
-                            <span className="text-xs">Certified</span>
+                            <button
+                              onClick={() => setShowCertificate({ moduleId: module.id, moduleTitle: module.title })}
+                              className="text-xs hover:underline"
+                            >
+                              View Certificate
+                            </button>
                           </div>
                         )}
                       </div>
@@ -403,6 +410,25 @@ const ComprehensiveStudentDashboard: React.FC = () => {
 
       {/* Tab Content */}
       {renderTabContent()}
+
+      {/* Module Certificate Modal */}
+      {showCertificate && (
+        <ModuleCertificateGenerator
+          module={{
+            id: showCertificate.moduleId,
+            title: showCertificate.moduleTitle,
+            description: '',
+            orderIndex: 0,
+            duration: 0,
+            videos: [],
+            courseId: course.id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }}
+          courseName={course.title}
+          onClose={() => setShowCertificate(null)}
+        />
+      )}
     </div>
   );
 };
